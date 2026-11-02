@@ -1,0 +1,132 @@
+{
+  "name": "CFA 05 – Dashboard API",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## CFA 05 – Dashboard API\nProvides high-performance analytical data endpoints for the front-end dashboard. Retrieves all feedback from Google Sheets, performs deterministic time-window aggregation (KPI totals, sentiment breakdowns, source shares, 30-day sentiment and volume trends), computes the top 5 issue rankings, strips PII (emails) from recent items for privacy, and delivers responses with full CORS support.",
+        "height": 200,
+        "width": 460
+      },
+      "id": "22a01b23-419b-4390-8802-cc1829ab3302",
+      "name": "Documentation Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-300, -220]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "dashboard-data",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cfa-dashboard-webhook-id",
+      "webhookId": "dashboard-data",
+      "name": "Dashboard Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-300, 100]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "__GOOGLE_SHEET_ID__",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "__SHEET_TAB_FEEDBACK__",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "673f889d-21be-4972-881c-f2be6cb11904",
+      "name": "Read All Feedback",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "position": [-80, 100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "__CRED_GOOGLE_SHEETS_ID__",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const query = $('Dashboard Webhook').first().json.query || {};\nconst range = query.days !== undefined ? (query.days === 'all' ? 'all' : String(Number(query.days) || 7)) : '7';\nconst batch_id = typeof query.batch_id === 'string' ? query.batch_id.trim() : '';\nconst sheetRows = $input.all();\n\nconst now = new Date();\nlet windowStart = null;\nif (range !== 'all') {\n  const d = Number(range);\n  if (!isNaN(d) && d > 0) {\n    windowStart = new Date(now.getTime() - d * 24 * 60 * 60 * 1000);\n  }\n}\n\nconst filteredRows = [];\nlet total_feedback = 0;\nconst totals = { feedback: 0, complaints: 0, bugs: 0, ideas: 0, praise: 0, angry: 0, avg_score: 0 };\nconst by_sentiment = { positive: 0, neutral: 0, negative: 0 };\nconst by_source = { survey: 0, email: 0, google_review: 0, test: 0 };\n\nlet score_sum = 0;\n\nfor (const item of sheetRows) {\n  const row = item.json || item;\n  if (!row.id || !row.received_at) continue;\n\n  const rowDate = new Date(row.received_at);\n  if (isNaN(rowDate.getTime())) continue;\n\n  if (batch_id && row.batch_id !== batch_id) continue;\n  if (windowStart && rowDate < windowStart) continue;\n\n  filteredRows.push(row);\n  total_feedback++;\n\n  totals.feedback++;\n  if (row.category === 'complaint') totals.complaints++;\n  else if (row.category === 'bug') totals.bugs++;\n  else if (row.category === 'idea') totals.ideas++;\n  else if (row.category === 'praise') totals.praise++;\n\n  const isAngry = row.is_angry === true || String(row.is_angry).toUpperCase() === 'TRUE';\n  if (isAngry) totals.angry++;\n\n  if (by_sentiment[row.sentiment] !== undefined) by_sentiment[row.sentiment]++;\n  if (by_source[row.source] !== undefined) by_source[row.source]++;\n\n  const sc = Number(row.sentiment_score) || 0;\n  score_sum += sc;\n}\n\ntotals.avg_score = totals.feedback > 0 ? Math.round((score_sum / totals.feedback) * 100) / 100 : 0;\n\n// Top issues ranking (strictly identical to WF4 logic)\nconst groups = {};\nfor (const row of filteredRows) {\n  if (row.category !== 'complaint' && row.category !== 'bug') continue;\n  const groupName = (row.issue_group || '').trim().toLowerCase();\n  if (!groupName || groupName === 'untriaged') continue;\n\n  if (!groups[groupName]) {\n    groups[groupName] = {\n      issue_group: groupName,\n      count: 0,\n      angry_count: 0,\n      score_sum: 0\n    };\n  }\n  groups[groupName].count++;\n  const isAngry = row.is_angry === true || String(row.is_angry).toUpperCase() === 'TRUE';\n  if (isAngry) groups[groupName].angry_count++;\n  const score = Number(row.sentiment_score) || 0;\n  groups[groupName].score_sum += score;\n}\n\nconst groupList = Object.values(groups).map(g => ({\n  issue_group: g.issue_group,\n  count: g.count,\n  angry_count: g.angry_count,\n  avg_score: Math.round((g.score_sum / g.count) * 100) / 100\n}));\n\ngroupList.sort((a, b) => {\n  if (b.count !== a.count) return b.count - a.count;\n  if (a.avg_score !== b.avg_score) return a.avg_score - b.avg_score;\n  return a.issue_group.localeCompare(b.issue_group);\n});\n\nconst top_issues = groupList.slice(0, 5).map(g => ({\n  issue_group: g.issue_group,\n  count: g.count,\n  angry_count: g.angry_count\n}));\n\n// Daily trends (last 30 days max)\nconst dailyMap = {};\nconst daysToCover = Math.min(range === 'all' ? 30 : (Number(range) || 7), 30);\nfor (let i = daysToCover - 1; i >= 0; i--) {\n  const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);\n  const key = d.toISOString().split('T')[0];\n  dailyMap[key] = { date: key, count: 0, score_sum: 0, avg_score: 0 };\n}\n\nfor (const row of filteredRows) {\n  const key = String(row.received_at).split('T')[0];\n  if (dailyMap[key]) {\n    dailyMap[key].count++;\n    dailyMap[key].score_sum += Number(row.sentiment_score) || 0;\n  }\n}\n\nconst daily = Object.values(dailyMap).map(d => ({\n  date: d.date,\n  count: d.count,\n  avg_score: d.count > 0 ? Math.round((d.score_sum / d.count) * 100) / 100 : 0\n}));\n\n// Recent 20 (newest first, customer_email excluded for privacy)\nconst sortedRecent = [...filteredRows].sort((a, b) => new Date(b.received_at) - new Date(a.received_at));\nconst recent = sortedRecent.slice(0, 20).map(r => ({\n  received_at: r.received_at,\n  source: r.source,\n  customer_name: r.customer_name || 'Anonymous',\n  rating: r.rating !== '' && r.rating !== null ? Number(r.rating) : 0,\n  comment: r.comment,\n  category: r.category,\n  sentiment: r.sentiment,\n  is_angry: r.is_angry === true || String(r.is_angry).toUpperCase() === 'TRUE',\n  issue_group: r.issue_group || ''\n}));\n\nreturn [{\n  json: {\n    ok: true,\n    generated_at: now.toISOString(),\n    range,\n    totals,\n    by_sentiment,\n    by_source,\n    daily,\n    top_issues,\n    recent\n  }\n}];"
+      },
+      "id": "e6a2b534-1188-469a-9e12-4091ecf1aa35",
+      "name": "Aggregate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [140, 100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "7832f91a-7b3b-4876-b33e-1fca489810f5",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [360, 100]
+    }
+  ],
+  "connections": {
+    "Dashboard Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read All Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Feedback": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  }
+}

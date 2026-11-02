@@ -1,0 +1,452 @@
+{
+  "name": "CFA 04 – Weekly Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## CFA 04 – Weekly Digest\nRuns on a weekly schedule (every Monday 08:00) or on demand via webhook. Retrieves feedback from Google Sheets, deterministically aggregates and ranks the top 5 customer issues, uses Gemini AI to generate executive insights and recommended actions, dispatches a mobile-friendly HTML summary email via Gmail, logs execution history in the Digests sheet, and returns JSON for API triggers.",
+        "height": 200,
+        "width": 460
+      },
+      "id": "11a01b23-419b-4390-8802-cc1829ab3301",
+      "name": "Documentation Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-300, -220]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "e81d0923-b102-411a-8801-bca019ab4422",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-300, 40]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "digest-run",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cfa-digest-webhook-id",
+      "webhookId": "digest-run",
+      "name": "Digest Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-300, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    batch_id: '',\n    days: 7,\n    send: true,\n    is_webhook: false\n  }\n}];"
+      },
+      "id": "41ba091c-b102-4190-8802-cca01918aa01",
+      "name": "Init Schedule Params",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-80, 40]
+    },
+    {
+      "parameters": {
+        "jsCode": "const query = $input.first().json.query || {};\nconst batch_id = typeof query.batch_id === 'string' ? query.batch_id.trim() : '';\nconst days = query.days !== undefined ? (query.days === 'all' ? 'all' : Number(query.days) || 7) : 7;\nconst send = query.send !== 'false' && query.send !== false;\n\nreturn [{\n  json: {\n    batch_id,\n    days,\n    send,\n    is_webhook: true\n  }\n}];"
+      },
+      "id": "41ba091c-b102-4190-8802-cca01918aa02",
+      "name": "Init Webhook Params",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-80, 220]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "__GOOGLE_SHEET_ID__",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "__SHEET_TAB_FEEDBACK__",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "673f889d-21be-4972-881c-f2be6cb11903",
+      "name": "Read All Feedback",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "position": [140, 120],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "__CRED_GOOGLE_SHEETS_ID__",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let triggerParams = { days: 7, batch_id: '', send: true, is_webhook: false };\ntry { const wp = $('Init Webhook Params').first()?.json; if (wp) triggerParams = wp; } catch (e) {}\ntry { const sp = $('Init Schedule Params').first()?.json; if (sp) triggerParams = sp; } catch (e) {};\nconst days = triggerParams.days !== undefined ? triggerParams.days : 7;\nconst batch_id = triggerParams.batch_id || '';\nconst sheetRows = $input.all();\n\nconst now = new Date();\nlet windowStart = null;\nif (days && days !== 'all') {\n  const d = Number(days);\n  if (!isNaN(d) && d > 0) {\n    windowStart = new Date(now.getTime() - d * 24 * 60 * 60 * 1000);\n  }\n}\n\nconst filteredRows = [];\nlet total_feedback = 0;\nconst counts_by_category = { praise: 0, complaint: 0, bug: 0, idea: 0 };\nconst counts_by_sentiment = { positive: 0, neutral: 0, negative: 0 };\n\nlet earliestDate = null;\nlet latestDate = null;\n\nfor (const item of sheetRows) {\n  const row = item.json || item;\n  if (!row.id || !row.received_at) continue;\n\n  const rowDate = new Date(row.received_at);\n  if (isNaN(rowDate.getTime())) continue;\n\n  if (batch_id && row.batch_id !== batch_id) continue;\n  if (windowStart && rowDate < windowStart) continue;\n\n  filteredRows.push(row);\n  total_feedback++;\n\n  if (counts_by_category[row.category] !== undefined) counts_by_category[row.category]++;\n  if (counts_by_sentiment[row.sentiment] !== undefined) counts_by_sentiment[row.sentiment]++;\n\n  if (!earliestDate || rowDate < earliestDate) earliestDate = rowDate;\n  if (!latestDate || rowDate > latestDate) latestDate = rowDate;\n}\n\nconst groups = {};\nfor (const row of filteredRows) {\n  if (row.category !== 'complaint' && row.category !== 'bug') continue;\n  const groupName = (row.issue_group || '').trim().toLowerCase();\n  if (!groupName || groupName === 'untriaged') continue;\n\n  if (!groups[groupName]) {\n    groups[groupName] = {\n      issue_group: groupName,\n      count: 0,\n      angry_count: 0,\n      score_sum: 0,\n      examples: []\n    };\n  }\n  groups[groupName].count++;\n  const isAngry = row.is_angry === true || String(row.is_angry).toUpperCase() === 'TRUE';\n  if (isAngry) groups[groupName].angry_count++;\n\n  const score = Number(row.sentiment_score) || 0;\n  groups[groupName].score_sum += score;\n\n  if (groups[groupName].examples.length < 2 && row.comment) {\n    groups[groupName].examples.push(row.comment.slice(0, 160));\n  }\n}\n\nconst groupList = Object.values(groups).map(g => ({\n  issue_group: g.issue_group,\n  count: g.count,\n  angry_count: g.angry_count,\n  avg_score: Math.round((g.score_sum / g.count) * 100) / 100,\n  examples: g.examples\n}));\n\ngroupList.sort((a, b) => {\n  if (b.count !== a.count) return b.count - a.count;\n  if (a.avg_score !== b.avg_score) return a.avg_score - b.avg_score;\n  return a.issue_group.localeCompare(b.issue_group);\n});\n\nconst top_issues = groupList.slice(0, 5).map((g, idx) => ({\n  rank: idx + 1,\n  issue_group: g.issue_group,\n  count: g.count,\n  angry_count: g.angry_count,\n  avg_score: g.avg_score,\n  examples: g.examples\n}));\n\nconst period_start = earliestDate ? earliestDate.toISOString().split('T')[0] : (windowStart ? windowStart.toISOString().split('T')[0] : now.toISOString().split('T')[0]);\nconst period_end = latestDate ? latestDate.toISOString().split('T')[0] : now.toISOString().split('T')[0];\n\nconst geminiPrompt = `You are a customer feedback executive writing notes for a weekly leadership digest for ChopFast, a food delivery service in Lagos.\nAnalyze these TOP 5 customer issues:\n${JSON.stringify(top_issues, null, 2)}\n\nProvide a JSON response with:\n1. \"overview\": an executive summary in at most 40 words.\n2. \"issues\": an array with one object for each of the top issues (keep the same order and issue_group), with:\n   - \"issue_group\": exact name of the group\n   - \"insight\": key operational takeaway in at most 20 words\n   - \"action\": recommended next step in at most 20 words`;\n\nconst geminiPayload = {\n  contents: [{ parts: [{ text: geminiPrompt }] }],\n  generationConfig: {\n    temperature: 0.2,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'OBJECT',\n      required: ['overview', 'issues'],\n      properties: {\n        overview: { type: 'STRING' },\n        issues: {\n          type: 'ARRAY',\n          items: {\n            type: 'OBJECT',\n            required: ['issue_group', 'insight', 'action'],\n            properties: {\n              issue_group: { type: 'STRING' },\n              insight: { type: 'STRING' },\n              action: { type: 'STRING' }\n            }\n          }\n        }\n      }\n    }\n  }\n};\n\nreturn [{\n  json: {\n    triggerParams,\n    total_feedback,\n    counts_by_category,\n    counts_by_sentiment,\n    period_start,\n    period_end,\n    top_issues,\n    geminiPayload\n  }\n}];"
+      },
+      "id": "e6a2b534-1188-469a-9e12-4091ecf1aa33",
+      "name": "Rank Top Issues",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [360, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/__GEMINI_MODEL__:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.geminiPayload) }}",
+        "options": {}
+      },
+      "id": "8c41bb02-3921-42fb-a790-25e2fb11d402",
+      "name": "Write Digest Notes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "position": [580, 120],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "__CRED_GEMINI_HEADER_ID__",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('Rank Top Issues').first().json;\nconst geminiRes = $input.first().json;\n\nlet aiNotes = null;\ntry {\n  const text = geminiRes.candidates?.[0]?.content?.parts?.[0]?.text;\n  if (text) aiNotes = JSON.parse(text);\n} catch(e) {}\n\nconst overview = aiNotes?.overview || 'Weekly summary of customer feedback, top pain points, and recommended team action items.';\nconst aiIssuesMap = new Map();\nif (aiNotes?.issues && Array.isArray(aiNotes.issues)) {\n  for (const it of aiNotes.issues) {\n    if (it.issue_group) aiIssuesMap.set(it.issue_group.toLowerCase(), it);\n  }\n}\n\nlet issuesHtml = '';\nfor (const iss of base.top_issues) {\n  const aiInfo = aiIssuesMap.get(iss.issue_group.toLowerCase());\n  const action = aiInfo?.action || 'Review comments with the operations team and assign owner.';\n  const insight = aiInfo?.insight || '';\n  \n  issuesHtml += `\n    <tr style=\"border-bottom: 1px solid #e2e8f0;\">\n      <td style=\"padding: 10px 8px; font-weight: bold; color: #1e293b;\">#${iss.rank}</td>\n      <td style=\"padding: 10px 8px;\">\n        <div style=\"font-weight: 600; color: #0f172a;\">${iss.issue_group}</div>\n        ${insight ? `<div style=\"font-size: 12px; color: #64748b; margin-top: 2px;\">${insight}</div>` : ''}\n        ${iss.examples.length ? `<div style=\"font-size: 11px; color: #94a3b8; font-style: italic; margin-top: 4px;\">\"${iss.examples[0]}\"</div>` : ''}\n      </td>\n      <td style=\"padding: 10px 8px; text-align: center;\">\n        <span style=\"background-color: #f1f5f9; padding: 2px 8px; border-radius: 9999px; font-weight: bold;\">${iss.count}</span>\n        ${iss.angry_count > 0 ? `<div style=\"color: #ef4444; font-size: 11px; margin-top: 2px;\">🚨 ${iss.angry_count} angry</div>` : ''}\n      </td>\n      <td style=\"padding: 10px 8px; font-size: 13px; color: #334155;\">${action}</td>\n    </tr>\n  `;\n}\n\nif (base.top_issues.length === 0) {\n  issuesHtml = '<tr><td colspan=\"4\" style=\"padding: 20px; text-align: center; color: #64748b;\">No repeated issues identified in this period. Great job!</td></tr>';\n}\n\nconst htmlBody = `\n<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head>\n<body style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px 0;\">\n  <table align=\"center\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);\">\n    <tr>\n      <td style=\"background-color: #10b981; padding: 24px 28px; color: #ffffff;\">\n        <div style=\"font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;\">ChopFast Customer Intelligence</div>\n        <h1 style=\"margin: 6px 0 0 0; font-size: 20px; font-weight: 700;\">Weekly Feedback Digest</h1>\n        <div style=\"font-size: 13px; margin-top: 4px; opacity: 0.9;\">${base.period_start} to ${base.period_end}</div>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding: 24px 28px;\">\n        <div style=\"background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 12px 16px; border-radius: 0 4px 4px 0; margin-bottom: 24px;\">\n          <div style=\"font-weight: 600; color: #166534; font-size: 13px; margin-bottom: 2px;\">Executive Overview</div>\n          <div style=\"color: #15803d; font-size: 14px; line-height: 1.4;\">${overview}</div>\n        </div>\n\n        <table width=\"100%\" style=\"margin-bottom: 24px;\">\n          <tr>\n            <td style=\"text-align: center; padding: 10px; background-color: #f8fafc; border-radius: 6px;\">\n              <div style=\"font-size: 20px; font-weight: bold; color: #0f172a;\">${base.total_feedback}</div>\n              <div style=\"font-size: 11px; text-transform: uppercase; color: #64748b;\">Total Received</div>\n            </td>\n            <td width=\"10\"></td>\n            <td style=\"text-align: center; padding: 10px; background-color: #f8fafc; border-radius: 6px;\">\n              <div style=\"font-size: 20px; font-weight: bold; color: #ef4444;\">${base.counts_by_category.complaint + base.counts_by_category.bug}</div>\n              <div style=\"font-size: 11px; text-transform: uppercase; color: #64748b;\">Issues / Bugs</div>\n            </td>\n            <td width=\"10\"></td>\n            <td style=\"text-align: center; padding: 10px; background-color: #f8fafc; border-radius: 6px;\">\n              <div style=\"font-size: 20px; font-weight: bold; color: #10b981;\">${base.counts_by_category.praise}</div>\n              <div style=\"font-size: 11px; text-transform: uppercase; color: #64748b;\">Praise</div>\n            </td>\n          </tr>\n        </table>\n\n        <h2 style=\"font-size: 16px; color: #0f172a; margin: 0 0 12px 0;\">Top 5 Repeated Issues</h2>\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse: collapse; font-size: 14px;\">\n          <thead>\n            <tr style=\"background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #475569; font-size: 12px; text-transform: uppercase;\">\n              <th style=\"padding: 8px; text-align: left;\">#</th>\n              <th style=\"padding: 8px; text-align: left;\">Issue</th>\n              <th style=\"padding: 8px; text-align: center;\">Volume</th>\n              <th style=\"padding: 8px; text-align: left;\">Suggested Action</th>\n            </tr>\n          </thead>\n          <tbody>\n            ${issuesHtml}\n          </tbody>\n        </table>\n\n        <div style=\"margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;\">\n          Generated automatically by ChopFast Customer Feedback Analyzer for leadership review.\n        </div>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>\n`;\n\nconst subject = `ChopFast weekly feedback digest — top 5 issues (${base.period_start} to ${base.period_end})`;\n\nreturn [{\n  json: {\n    ...base,\n    subject,\n    htmlBody,\n    recipient: '__DIGEST_RECIPIENT_EMAIL__'\n  }\n}];"
+      },
+      "id": "10b8cf92-9110-482a-bc93-a44781df0304",
+      "name": "Build Digest Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 120]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c_send",
+              "leftValue": "={{ $json.triggerParams.send }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "5e174b01-512c-4933-9118-8f81ea01bc11",
+      "name": "Is Send True?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1020, 120]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "__DIGEST_RECIPIENT_EMAIL__",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.htmlBody }}",
+        "options": {}
+      },
+      "id": "f5127ab9-7a1b-4d44-be19-86927da8002a",
+      "name": "Send Digest Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1240, 60],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "__CRED_GMAIL_ID__",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const digest = $('Build Digest Email').first().json;\nreturn [{\n  json: {\n    run_at: new Date().toISOString(),\n    period_start: digest.period_start || '',\n    period_end: digest.period_end || '',\n    batch_id: digest.triggerParams?.batch_id || '',\n    total_feedback: digest.total_feedback || 0,\n    top_issues_json: JSON.stringify(digest.top_issues || []),\n    recipient: digest.triggerParams?.send ? (digest.recipient || '') : 'NOT_SENT (send=false)'\n  }\n}];"
+      },
+      "id": "71fa8201-419b-4390-8802-cc1829ab9944",
+      "name": "Format Digest Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 120]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "__GOOGLE_SHEET_ID__",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "__SHEET_TAB_DIGESTS__",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "cf64a78b-304e-4f1b-b461-897db6c1002b",
+      "name": "Log Digest",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "position": [1560, 120],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "__CRED_GOOGLE_SHEETS_ID__",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c_wb",
+              "leftValue": "={{ $('Rank Top Issues').first().json.triggerParams.is_webhook }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "5e174b01-512c-4933-9118-8f81ea01bc12",
+      "name": "Is Webhook Trigger?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1760, 120]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  ok: true,\n  period_start: $('Rank Top Issues').first().json.period_start,\n  period_end: $('Rank Top Issues').first().json.period_end,\n  batch_id: $('Rank Top Issues').first().json.triggerParams.batch_id,\n  total_feedback: $('Rank Top Issues').first().json.total_feedback,\n  top_issues: $('Rank Top Issues').first().json.top_issues\n}) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "7832f91a-7b3b-4876-b33e-1fca489810f3",
+      "name": "Respond With Digest",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1960, 60]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Init Schedule Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Digest Webhook": {
+      "main": [
+        [
+          {
+            "node": "Init Webhook Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Schedule Params": {
+      "main": [
+        [
+          {
+            "node": "Read All Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Webhook Params": {
+      "main": [
+        [
+          {
+            "node": "Read All Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Feedback": {
+      "main": [
+        [
+          {
+            "node": "Rank Top Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rank Top Issues": {
+      "main": [
+        [
+          {
+            "node": "Write Digest Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Digest Notes": {
+      "main": [
+        [
+          {
+            "node": "Build Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Digest Email": {
+      "main": [
+        [
+          {
+            "node": "Is Send True?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Send True?": {
+      "main": [
+        [
+          {
+            "node": "Send Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Digest Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Digest Email": {
+      "main": [
+        [
+          {
+            "node": "Format Digest Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Digest Log": {
+      "main": [
+        [
+          {
+            "node": "Log Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Digest": {
+      "main": [
+        [
+          {
+            "node": "Is Webhook Trigger?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Webhook Trigger?": {
+      "main": [
+        [
+          {
+            "node": "Respond With Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  }
+}
