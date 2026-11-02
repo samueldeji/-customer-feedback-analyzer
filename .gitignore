@@ -18,3 +18,8 @@ scripts/cloudflared.exe
 .DS_Store
 Thumbs.db
 *.log
+
+# Private SIWES materials
+docs/siwes-logbook-3months.md
+docs/*logbook*
+*logbook*
