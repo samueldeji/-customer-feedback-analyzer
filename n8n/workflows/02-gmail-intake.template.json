@@ -1,0 +1,95 @@
+{
+  "name": "CFA 02 – Gmail Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## CFA 02 – Gmail Intake\nPolls Gmail periodically for incoming customer emails tagged with the feedback label, cleans and normalizes message bodies (removing quoted chains and email signatures), and routes structured feedback to the central CFA 01 Feedback Processor.",
+        "height": 180,
+        "width": 460
+      },
+      "id": "e2a1b001-419b-466d-92d5-45cbb6c24190",
+      "name": "Documentation Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-300, -200]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "__GMAIL_FEEDBACK_QUERY__"
+        }
+      },
+      "id": "78a9c112-9b21-4d33-bc41-bba65111b01a",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [-300, 100],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "__CRED_GMAIL_ID__",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst messageId = item.id || item.threadId || ('email_' + Date.now());\n\nconst fromHeader = item.from?.value?.[0] || item.from || '';\nlet customer_name = '';\nlet customer_email = '';\n\nif (typeof fromHeader === 'object' && fromHeader.address) {\n  customer_name = fromHeader.name || '';\n  customer_email = fromHeader.address || '';\n} else {\n  const match = String(fromHeader).match(/^(.*?)\\s*<(.+?)>$/);\n  if (match) {\n    customer_name = match[1].replace(/^[\"']|[\"']$/g, '').trim();\n    customer_email = match[2].trim();\n  } else {\n    customer_email = String(fromHeader).trim();\n  }\n}\n\nconst subject = item.subject || '';\nlet body = item.text || item.snippet || '';\n\n// Strip quoted replies\nbody = body.replace(/^>.*$/gm, '');\n// Strip \"On ... wrote:\"\nbody = body.replace(/On\\s+[\\s\\S]+?wrote:[\\s\\S]*/gi, '');\n// Strip signatures\nbody = body.replace(/--\\s*[\\r\\n][\\s\\S]*/g, '');\n\nbody = body.trim();\n\nlet fullComment = subject ? `${subject} — ${body}` : body;\nfullComment = fullComment.trim().slice(0, 2000);\n\nif (fullComment.length < 3) {\n  fullComment = (subject || 'Customer email feedback').slice(0, 2000);\n}\n\nreturn [{\n  json: {\n    source: 'email',\n    source_ref: String(messageId),\n    customer_name,\n    customer_email,\n    rating: null,\n    comment: fullComment\n  }\n}];"
+      },
+      "id": "18cf701a-8b11-499b-9801-bca54199aa12",
+      "name": "Normalize Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-80, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/feedback",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "99b01ca4-419b-4390-87ef-31bb0411ab12",
+      "name": "Send To Processor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [140, 100]
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Email": {
+      "main": [
+        [
+          {
+            "node": "Send To Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  }
+}

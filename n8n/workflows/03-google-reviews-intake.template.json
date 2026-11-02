@@ -1,0 +1,187 @@
+{
+  "name": "CFA 03 – Google Reviews Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## CFA 03 – Google Reviews Intake\nPeriodically fetches the latest Google Places reviews, extracts individual reviews, cross-checks against the Google Sheet to prevent duplicate ingestion, and pushes new reviews to the CFA 01 Feedback Processor.",
+        "height": 180,
+        "width": 460
+      },
+      "id": "31b2041a-7a91-49b0-9901-bca4198ab011",
+      "name": "Documentation Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-300, -200]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "e81d0923-b102-411a-8801-bca019ab4410",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-300, 100]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://places.googleapis.com/v1/places/__GOOGLE_PLACE_ID__",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "reviews"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1904ba1-411a-4780-9901-ca1892bb4109",
+      "name": "Fetch Reviews",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-80, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "__CRED_PLACES_HEADER_ID__",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const placeData = $input.first().json;\nconst reviews = placeData.reviews || [];\nconst out = [];\n\nfor (const rev of reviews) {\n  const comment = rev.text?.text || rev.originalText?.text || '';\n  if (comment.trim().length >= 3) {\n    out.push({\n      json: {\n        source: 'google_review',\n        source_ref: rev.name || '',\n        customer_name: rev.authorAttribution?.displayName || 'Google Reviewer',\n        rating: rev.rating || null,\n        comment: comment.trim().slice(0, 2000)\n      }\n    });\n  }\n}\n\nreturn out;"
+      },
+      "id": "41ba091c-b102-4190-8802-cca01918ab44",
+      "name": "Split Reviews",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [140, 100]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "__GOOGLE_SHEET_ID__",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "__SHEET_TAB_FEEDBACK__",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "9901bca2-811a-4710-9102-a1892bb01490",
+      "name": "Read Known Reviews",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "alwaysOutputData": true,
+      "position": [360, 100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "__CRED_GOOGLE_SHEETS_ID__",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sheetRows = $('Read Known Reviews').all();\nconst knownRefs = new Set();\n\nfor (const row of sheetRows) {\n  const ref = row.json?.source_ref;\n  if (ref && typeof ref === 'string') {\n    knownRefs.add(ref.trim());\n  }\n}\n\nconst newReviews = $('Split Reviews').all();\nconst filtered = [];\n\nfor (const rev of newReviews) {\n  const ref = rev.json?.source_ref;\n  if (!ref || !knownRefs.has(ref.trim())) {\n    filtered.push(rev);\n  }\n}\n\nreturn filtered;"
+      },
+      "id": "b102941a-4190-4811-9902-aa1902bb3101",
+      "name": "Keep New Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [580, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/feedback",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "771a091b-b102-411a-8801-bca019ab4412",
+      "name": "Send To Processor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 100]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Reviews": {
+      "main": [
+        [
+          {
+            "node": "Split Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Reviews": {
+      "main": [
+        [
+          {
+            "node": "Read Known Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Known Reviews": {
+      "main": [
+        [
+          {
+            "node": "Keep New Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep New Only": {
+      "main": [
+        [
+          {
+            "node": "Send To Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  }
+}

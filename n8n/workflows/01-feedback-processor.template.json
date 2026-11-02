@@ -158,6 +158,9 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
       "position": [360, 100],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -236,6 +239,9 @@
       "name": "Save To Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
       "position": [1240, 100],
       "credentials": {
         "googleSheetsOAuth2Api": {
