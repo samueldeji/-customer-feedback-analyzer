@@ -12,14 +12,6 @@ let refreshTimer = null;
 const AUTO_REFRESH_INTERVAL_MS = 60000;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Auth Elements
-  const authGate = document.getElementById('admin-auth-gate');
-  const mainView = document.getElementById('dashboard-main-view');
-  const authForm = document.getElementById('admin-auth-form');
-  const passwordInput = document.getElementById('admin-password-input');
-  const authError = document.getElementById('admin-auth-error');
-  const lockBtn = document.getElementById('lock-dashboard-btn');
-
   const rangeSelector = document.getElementById('range-selector');
   const refreshBtn = document.getElementById('refresh-btn');
   const refreshIcon = document.getElementById('refresh-icon');
@@ -439,64 +431,20 @@ document.addEventListener('DOMContentLoaded', () => {
   function resetAutoRefresh() {
     if (refreshTimer) clearInterval(refreshTimer);
     refreshTimer = setInterval(() => {
-      if (document.visibilityState === 'visible' && isAuthorized()) {
+      if (document.visibilityState === 'visible') {
         loadData();
       }
     }, AUTO_REFRESH_INTERVAL_MS);
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && isAuthorized()) {
+    if (document.visibilityState === 'visible') {
       loadData();
       resetAutoRefresh();
     }
   });
 
-  // Authentication Helpers
-  function isAuthorized() {
-    return sessionStorage.getItem('chopfast_admin_auth') === 'true';
-  }
-
-  function unlockDashboard() {
-    authGate?.classList.add('hidden');
-    mainView?.classList.remove('hidden');
-    loadData();
-    resetAutoRefresh();
-  }
-
-  function lockDashboard() {
-    sessionStorage.removeItem('chopfast_admin_auth');
-    if (refreshTimer) clearInterval(refreshTimer);
-    mainView?.classList.add('hidden');
-    authGate?.classList.remove('hidden');
-    if (passwordInput) {
-      passwordInput.value = '';
-    }
-  }
-
-  authForm?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    authError?.classList.add('hidden');
-    const entered = (passwordInput?.value || '').trim();
-    const expected = (window.APP_CONFIG && window.APP_CONFIG.ADMIN_PASSWORD) || 'chopfast2026';
-
-    if (entered === expected) {
-      sessionStorage.setItem('chopfast_admin_auth', 'true');
-      unlockDashboard();
-    } else {
-      authError?.classList.remove('hidden');
-      passwordInput?.select();
-    }
-  });
-
-  lockBtn?.addEventListener('click', () => {
-    lockDashboard();
-  });
-
-  // Initial Authentication Check
-  if (isAuthorized()) {
-    unlockDashboard();
-  } else {
-    lockDashboard();
-  }
+  // Initial load
+  loadData();
+  resetAutoRefresh();
 });
