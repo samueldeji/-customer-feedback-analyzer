@@ -10,37 +10,35 @@
   <!-- Chart.js pinned to 4.6.1 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.6.1/dist/chart.umd.min.js"></script>
 </head>
-<body class="flex min-h-full flex-col font-sans">
+<body class="flex min-h-full flex-col font-sans bg-[#FAF7F2] text-[#1C1A17]">
 
   <!-- Header -->
-  <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
+  <header class="border-b border-[#E5E0D8] bg-[#FFFFFF]">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-      <a href="index.html" class="flex items-center gap-2 text-xl font-bold tracking-tight text-emerald-700 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-md">
-        <span>ChopFast Feedback</span>
+      <a href="index.html" class="text-lg font-semibold tracking-tight text-[#1C1A17] hover:text-[#C2410C] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C2410C]">
+        ChopFast Feedback
       </a>
 
       <!-- Desktop Nav -->
       <nav class="hidden md:flex items-center gap-6" aria-label="Main Navigation">
-        <a href="index.html" class="text-sm font-medium text-slate-600 hover:text-emerald-600 transition-colors">Home</a>
-        <a href="feedback.html" class="text-sm font-medium text-slate-600 hover:text-emerald-600 transition-colors">Give Feedback</a>
-        <a href="dashboard.html" class="text-sm font-semibold text-emerald-700 border-b-2 border-emerald-600 pb-0.5">Dashboard</a>
+        <a href="index.html" class="text-sm font-medium text-[#6B655C] hover:text-[#1C1A17] hover:underline">Home</a>
+        <a href="feedback.html" class="text-sm font-medium text-[#6B655C] hover:text-[#1C1A17] hover:underline">Give feedback</a>
+        <a href="dashboard.html" class="text-sm font-semibold text-[#C2410C] border-b-2 border-[#C2410C] pb-0.5">Dashboard</a>
       </nav>
 
       <!-- Mobile Menu Button -->
       <button id="mobile-menu-btn" type="button" aria-expanded="false" aria-controls="mobile-nav" aria-label="Toggle navigation menu"
-        class="inline-flex md:hidden items-center justify-center rounded-lg p-2.5 text-slate-600 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
-        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
+        class="inline-flex md:hidden items-center justify-center min-h-[44px] min-w-[44px] px-3 py-2 text-sm font-medium text-[#1C1A17] border border-[#E5E0D8] rounded-[6px] hover:bg-[#F3EFEA] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C2410C]">
+        Menu
       </button>
     </div>
 
     <!-- Mobile Navigation Dropdown -->
-    <nav id="mobile-nav" class="hidden border-t border-slate-200 bg-white px-4 py-3 md:hidden" aria-label="Mobile Navigation">
+    <nav id="mobile-nav" class="hidden border-t border-[#E5E0D8] bg-[#FFFFFF] px-4 py-3 md:hidden" aria-label="Mobile Navigation">
       <div class="flex flex-col gap-2">
-        <a href="index.html" class="rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-50">Home</a>
-        <a href="feedback.html" class="rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-50">Give Feedback</a>
-        <a href="dashboard.html" class="rounded-md px-3 py-2 text-base font-semibold text-emerald-700 bg-emerald-50">Dashboard</a>
+        <a href="index.html" class="rounded-[6px] px-3 py-2 text-sm font-medium text-[#1C1A17] hover:bg-[#FAF7F2]">Home</a>
+        <a href="feedback.html" class="rounded-[6px] px-3 py-2 text-sm font-medium text-[#1C1A17] hover:bg-[#FAF7F2]">Give feedback</a>
+        <a href="dashboard.html" class="rounded-[6px] px-3 py-2 text-sm font-semibold text-[#C2410C] bg-[#FAF7F2]">Dashboard</a>
       </div>
     </nav>
   </header>
@@ -251,13 +249,9 @@
   </main>
 
   <!-- Footer -->
-  <footer class="border-t border-slate-200 bg-white py-6">
-    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6 text-xs text-slate-500">
-      <p>&copy; ChopFast Lagos. Built for SIWES Technical Defense &bull; Dept. of Computer Science, OAU.</p>
-      <div class="flex gap-4">
-        <a href="index.html" class="hover:text-emerald-700 transition-colors">Home</a>
-        <a href="feedback.html" class="hover:text-emerald-700 transition-colors">Give Feedback</a>
-      </div>
+  <footer class="border-t border-[#E5E0D8] bg-[#FFFFFF] py-6">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 text-center sm:text-left text-xs text-[#6B655C]">
+      <p>ChopFast is a fictional business used for this project. SIWES project, Department of Computer Science, Obafemi Awolowo University, 2026.</p>
     </div>
   </footer>
 

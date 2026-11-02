@@ -1,6 +1,6 @@
 // customer-feedback-analyzer
 // web/public/js/feedback.js
-// Handles feedback form interactions, star ratings, character counting, and async submission.
+// Handles feedback form interactions, rating selection, character counting, and async submission.
 
 import { postFeedback } from './api.js';
 
@@ -9,40 +9,37 @@ document.addEventListener('DOMContentLoaded', () => {
   const commentInput = document.getElementById('comment');
   const charCounter = document.getElementById('char-counter');
   const errorBanner = document.getElementById('error-banner');
-  const errorMessage = document.getElementById('error-message');
+  const emailInput = document.getElementById('customer_email');
+  const emailError = document.getElementById('email-error');
+  const commentError = document.getElementById('comment-error');
   const submitBtn = document.getElementById('submit-btn');
-  const submitBtnText = document.getElementById('submit-btn-text');
-  const submitBtnSpinner = document.getElementById('submit-btn-spinner');
   const formContainer = document.getElementById('feedback-form-container');
   const successContainer = document.getElementById('feedback-success-container');
   const sendAnotherBtn = document.getElementById('send-another-btn');
   const clearRatingBtn = document.getElementById('clear-rating-btn');
   const ratingRadios = document.querySelectorAll('input[name="rating"]');
-  const starIcons = document.querySelectorAll('.star-icon');
+  const ratingButtons = document.querySelectorAll('.rating-btn');
 
   // Live character counter
   commentInput.addEventListener('input', () => {
     const len = commentInput.value.length;
     charCounter.textContent = `${len} / 2000`;
-    if (len >= 1950) {
-      charCounter.classList.add('text-red-500');
-    } else {
-      charCounter.classList.remove('text-red-500');
+    if (commentError && len > 0) {
+      commentError.classList.add('hidden');
     }
   });
 
-  // Star rating visual highlight
-  function updateStars(selectedValue) {
-    const val = Number(selectedValue) || 0;
+  // Rating visual selection
+  function updateRatingVisual(val) {
     ratingRadios.forEach((radio, idx) => {
-      const star = starIcons[idx];
-      const starVal = idx + 1;
-      if (starVal <= val) {
-        star.classList.remove('text-slate-300');
-        star.classList.add('text-amber-400');
+      const btn = ratingButtons[idx];
+      const rVal = Number(radio.value);
+      if (rVal === val) {
+        btn.classList.add('border-[#C2410C]', 'text-[#C2410C]', 'bg-[#FAF7F2]', 'font-semibold');
+        btn.classList.remove('border-[#E5E0D8]', 'text-[#1C1A17]', 'bg-[#FFFFFF]');
       } else {
-        star.classList.remove('text-amber-400');
-        star.classList.add('text-slate-300');
+        btn.classList.remove('border-[#C2410C]', 'text-[#C2410C]', 'bg-[#FAF7F2]', 'font-semibold');
+        btn.classList.add('border-[#E5E0D8]', 'text-[#1C1A17]', 'bg-[#FFFFFF]');
       }
     });
 
@@ -55,72 +52,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
   ratingRadios.forEach(radio => {
     radio.addEventListener('change', () => {
-      updateStars(radio.value);
+      updateRatingVisual(Number(radio.value) || 0);
     });
   });
 
   clearRatingBtn?.addEventListener('click', () => {
     ratingRadios.forEach(r => (r.checked = false));
-    updateStars(0);
+    updateRatingVisual(0);
   });
 
-  function showError(msg) {
-    errorMessage.textContent = msg;
-    errorBanner.classList.remove('hidden');
-    errorBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-
-  function hideError() {
-    errorBanner.classList.add('hidden');
+  function hideAllErrors() {
+    errorBanner?.classList.add('hidden');
+    emailError?.classList.add('hidden');
+    commentError?.classList.add('hidden');
   }
 
   function setLoading(loading) {
     submitBtn.disabled = loading;
-    if (loading) {
-      submitBtnSpinner.classList.remove('hidden');
-      submitBtnText.textContent = 'Submitting...';
-    } else {
-      submitBtnSpinner.classList.add('hidden');
-      submitBtnText.textContent = 'Send Feedback';
-    }
+    submitBtn.textContent = loading ? 'Sending…' : 'Send feedback';
   }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    hideError();
+    hideAllErrors();
+
+    let hasError = false;
 
     const comment = commentInput.value.trim();
     if (!comment) {
-      showError('Please write your comments before submitting.');
+      if (commentError) {
+        commentError.classList.remove('hidden');
+      }
       commentInput.focus();
-      return;
+      hasError = true;
     }
 
-    if (comment.length > 2000) {
-      showError('Comments cannot exceed 2000 characters.');
-      commentInput.focus();
+    const customer_email = emailInput.value.trim() || undefined;
+    if (customer_email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(customer_email)) {
+        if (emailError) {
+          emailError.classList.remove('hidden');
+        }
+        if (!hasError) emailInput.focus();
+        hasError = true;
+      }
+    }
+
+    if (hasError) {
       return;
     }
 
     const selectedRating = document.querySelector('input[name="rating"]:checked');
     const rating = selectedRating ? Number(selectedRating.value) : undefined;
     const customer_name = document.getElementById('customer_name').value.trim() || undefined;
-    const customer_email = document.getElementById('customer_email').value.trim() || undefined;
-    const sourceSelect = document.getElementById('feedback_source');
-    const source = sourceSelect ? sourceSelect.value : 'survey';
     const website = document.getElementById('form-website').value.trim();
 
-    if (customer_email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(customer_email)) {
-        showError('Please enter a valid email address, or leave it blank.');
-        document.getElementById('customer_email').focus();
-        return;
-      }
-    }
-
     const payload = {
-      source,
+      source: 'survey',
       comment,
       ...(customer_name && { customer_name }),
       ...(customer_email && { customer_email }),
@@ -138,18 +127,21 @@ document.addEventListener('DOMContentLoaded', () => {
       successContainer.classList.remove('hidden');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      showError(err.message || 'Unable to submit feedback. Please try again.');
+      if (errorBanner) {
+        errorBanner.textContent = "Couldn't send your feedback. Check your connection and try again.";
+        errorBanner.classList.remove('hidden');
+      }
     } finally {
       setLoading(false);
     }
   });
 
-  // "Send Another" button handler
+  // "Send another" button handler
   sendAnotherBtn.addEventListener('click', () => {
     form.reset();
     charCounter.textContent = '0 / 2000';
-    updateStars(0);
-    hideError();
+    updateRatingVisual(0);
+    hideAllErrors();
     successContainer.classList.add('hidden');
     formContainer.classList.remove('hidden');
   });
