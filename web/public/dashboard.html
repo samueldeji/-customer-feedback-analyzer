@@ -48,6 +48,42 @@
   <!-- Main Content -->
   <main class="flex-1 py-8">
     <div class="mx-auto max-w-7xl px-4 sm:px-6">
+
+      <!-- Admin Authentication Gate Card -->
+      <div id="admin-auth-gate" class="mx-auto max-w-md px-4 py-8 sm:py-16">
+        <div class="card shadow-lg border border-slate-200 p-6 sm:p-8 text-center bg-white rounded-2xl">
+          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 mb-4">
+            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </div>
+          <h2 class="text-xl font-bold tracking-tight text-slate-900">Restricted Operations Portal</h2>
+          <p class="mt-2 text-sm text-slate-600 mb-6">Enter the Admin / Restaurant Manager password to access live intelligence telemetry.</p>
+          
+          <form id="admin-auth-form" class="space-y-4">
+            <div class="text-left">
+              <label for="admin-password-input" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Admin Password</label>
+              <input type="password" id="admin-password-input" placeholder="Enter password..." autocomplete="current-password" required
+                class="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
+            </div>
+            
+            <div id="admin-auth-error" class="hidden text-xs font-semibold text-red-600 bg-red-50 py-2.5 px-3 rounded-lg border border-red-200">
+              Incorrect password. Please try again.
+            </div>
+
+            <button type="submit" id="admin-auth-submit" class="btn btn-primary w-full py-2.5 text-sm font-semibold">
+              Unlock Dashboard
+            </button>
+          </form>
+          
+          <div class="mt-6 border-t border-slate-100 pt-4 text-xs text-slate-400">
+            Internal Operations Review &bull; ChopFast Lagos
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard Main View (Protected) -->
+      <div id="dashboard-main-view" class="hidden">
       
       <!-- Top Action Bar -->
       <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-5">
@@ -74,6 +110,14 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
             <span>Refresh</span>
+          </button>
+
+          <!-- Lock Dashboard Button -->
+          <button id="lock-dashboard-btn" type="button" class="btn btn-secondary text-sm px-3.5 py-2 inline-flex items-center gap-1.5 text-slate-600 hover:text-red-600 hover:border-red-300" title="Lock Dashboard and sign out">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <span>Lock</span>
           </button>
         </div>
       </div>
@@ -247,6 +291,7 @@
         </section>
 
       </div>
+      </div> <!-- /#dashboard-main-view -->
     </div>
   </main>
 
