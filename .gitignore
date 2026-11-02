@@ -7,9 +7,6 @@ node_modules/
 # Generated n8n workflows
 n8n/dist/
 
-# Generated web assets
-web/public/css/styles.css
-
 # Test artifacts
 test-data/last-run.json
 

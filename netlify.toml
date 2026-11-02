@@ -3,8 +3,9 @@
 # Root Netlify configuration
 
 [build]
-  command = "npm run web:build"
-  publish = "web/public"
+  base = "web"
+  command = "npm run build"
+  publish = "public"
 
 [[headers]]
   for = "/*"
