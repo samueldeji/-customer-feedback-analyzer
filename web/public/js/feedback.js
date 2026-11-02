@@ -106,6 +106,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const rating = selectedRating ? Number(selectedRating.value) : undefined;
     const customer_name = document.getElementById('customer_name').value.trim() || undefined;
     const customer_email = document.getElementById('customer_email').value.trim() || undefined;
+    const sourceSelect = document.getElementById('feedback_source');
+    const source = sourceSelect ? sourceSelect.value : 'survey';
     const website = document.getElementById('form-website').value.trim();
 
     if (customer_email) {
@@ -118,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const payload = {
-      source: 'survey',
+      source,
       comment,
       ...(customer_name && { customer_name }),
       ...(customer_email && { customer_email }),
