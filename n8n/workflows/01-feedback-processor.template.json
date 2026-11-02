@@ -301,7 +301,8 @@
         "chatId": "__TELEGRAM_CHAT_ID__",
         "text": "={{ '🚨 <b>Angry customer alert</b>\\n<b>Source:</b> ' + $('Parse Tags').first().json.source + '\\n<b>Customer:</b> ' + ($('Parse Tags').first().json.customer_name || 'Anonymous') + ' ' + ($('Parse Tags').first().json.customer_email || '') + '\\n<b>Rating:</b> ' + ($('Parse Tags').first().json.rating || 'n/a') + '  <b>Score:</b> ' + $('Parse Tags').first().json.sentiment_score + '\\n<b>Issue:</b> ' + $('Parse Tags').first().json.issue_group + '\\n\"' + ($('Parse Tags').first().json.comment || '').slice(0, 500).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '\"' }}",
         "additionalFields": {
-          "parse_mode": "HTML"
+          "parse_mode": "HTML",
+          "appendAttribution": false
         }
       },
       "id": "f5127ab9-7a1b-4d44-be19-86927da8001e",
