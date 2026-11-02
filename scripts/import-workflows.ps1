@@ -38,10 +38,11 @@ if ($n8nMode -eq "docker") {
   exit 1
 }
 
-Write-Host "`nImport completed successfully." -ForegroundColor Green
+Write-Host ""
+Write-Host "Import completed successfully." -ForegroundColor Green
 Write-Host "Remember to open the n8n editor (http://localhost:5678) and ACTIVATE:" -ForegroundColor Yellow
-Write-Host "  - CFA 01 – Feedback Processor" -ForegroundColor Yellow
-Write-Host "  - CFA 02 – Gmail Intake" -ForegroundColor Yellow
-Write-Host "  - CFA 04 – Weekly Digest" -ForegroundColor Yellow
-Write-Host "  - CFA 05 – Dashboard API" -ForegroundColor Yellow
-Write-Host "(CFA 03 – Google Reviews Intake should only be activated if Google Places is configured)" -ForegroundColor DarkGray
+Write-Host "  - CFA 01 - Feedback Processor" -ForegroundColor Yellow
+Write-Host "  - CFA 02 - Gmail Intake" -ForegroundColor Yellow
+Write-Host "  - CFA 04 - Weekly Digest" -ForegroundColor Yellow
+Write-Host "  - CFA 05 - Dashboard API" -ForegroundColor Yellow
+Write-Host "(CFA 03 - Google Reviews Intake should only be activated if Google Places is configured)" -ForegroundColor DarkGray

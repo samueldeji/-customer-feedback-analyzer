@@ -1,0 +1,461 @@
+{
+  "name": "CFA 01 – Feedback Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## CFA 01 – Feedback Processor\nReceives customer feedback payloads via webhook, validates inputs and screens spam honeypots, retrieves existing issue groups from Google Sheets, runs Gemini AI classification and fuzzy clustering, records tagged feedback in Google Sheets, and dispatches real-time Telegram alerts for angry customers.",
+        "height": 180,
+        "width": 460
+      },
+      "id": "7a3e1b12-581d-4001-9f5b-b91c10d3e201",
+      "name": "Documentation Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-300, -220]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "feedback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cfa-feedback-webhook-id",
+      "webhookId": "feedback",
+      "name": "Feedback Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-300, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet payload = raw.body !== undefined ? raw.body : raw;\nif (typeof payload === 'string') {\n  try {\n    payload = JSON.parse(payload);\n  } catch (e) {\n    return [{ json: { valid: false, spam: false, error: 'Invalid JSON body string' } }];\n  }\n}\nif (!payload || typeof payload !== 'object') {\n  return [{ json: { valid: false, spam: false, error: 'Request body must be a JSON object' } }];\n}\n\n// Honeypot spam check\nif (payload.website && String(payload.website).trim() !== '') {\n  return [{ json: { valid: false, spam: true, error: null } }];\n}\n\nconst comment = typeof payload.comment === 'string' ? payload.comment.trim() : '';\nif (comment.length < 3 || comment.length > 2000) {\n  return [{ json: { valid: false, spam: false, error: 'Comment is required and must be between 3 and 2000 characters' } }];\n}\n\nlet rating = null;\nif (payload.rating !== undefined && payload.rating !== null && payload.rating !== '') {\n  const r = Number(payload.rating);\n  if (!Number.isInteger(r) || r < 1 || r > 5) {\n    return [{ json: { valid: false, spam: false, error: 'Rating must be an integer between 1 and 5' } }];\n  }\n  rating = r;\n}\n\nconst validSources = ['survey', 'email', 'google_review', 'test'];\nlet source = typeof payload.source === 'string' ? payload.source.trim().toLowerCase() : 'survey';\nif (!validSources.includes(source)) {\n  source = 'survey';\n}\n\nconst id = 'fb_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);\nconst received_at = new Date().toISOString();\n\nconst data = {\n  id,\n  received_at,\n  source,\n  source_ref: typeof payload.source_ref === 'string' ? payload.source_ref.trim() : '',\n  customer_name: typeof payload.customer_name === 'string' ? payload.customer_name.trim() : '',\n  customer_email: typeof payload.customer_email === 'string' ? payload.customer_email.trim() : '',\n  rating,\n  comment,\n  batch_id: typeof payload.batch_id === 'string' ? payload.batch_id.trim() : ''\n};\n\nreturn [{ json: { valid: true, spam: false, error: null, data } }];"
+      },
+      "id": "e81d77a2-1bb2-48a0-9749-923cb1171810",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-80, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "314f5ec9-399c-48c5-926b-8006e0939105",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [140, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c_spam",
+              "leftValue": "={{ $json.spam }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "93f87b20-1a7f-47dc-908b-dc54ecf0148e",
+      "name": "Is Spam?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [360, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": true\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "5285741b-4176-4767-8ccb-0775d71da703",
+      "name": "Respond Spam 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [600, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Validation error' }) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "c138b1e4-399c-4861-ba09-9b93abcc689e",
+      "name": "Respond 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [600, 420]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "__GOOGLE_SHEET_ID__",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "__SHEET_TAB_FEEDBACK__",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "673f889d-21be-4972-881c-f2be6cb11902",
+      "name": "Read Existing Groups",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "alwaysOutputData": true,
+      "position": [360, 100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "__CRED_GOOGLE_SHEETS_ID__",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const validated = $('Validate Input').first().json.data;\nconst sheetRows = $input.all();\nconst existingGroupsSet = new Set();\n\nfor (const row of sheetRows) {\n  const g = row.json?.issue_group;\n  if (g && typeof g === 'string') {\n    const clean = g.trim().toLowerCase();\n    if (clean !== '' && clean !== 'untriaged') {\n      existingGroupsSet.add(clean);\n    }\n  }\n}\nconst existingGroups = Array.from(existingGroupsSet);\n\nconst prompt = `You are a customer feedback analyst for a business. Classify ONE customer comment.\n\nRules:\n- category: exactly one of\n  - \"bug\": a technical malfunction of the app or website (crash, freeze, error message, broken button, payment page failing).\n  - \"complaint\": dissatisfaction with service, delivery, staff, price, food or product quality.\n  - \"idea\": a suggestion or feature request.\n  - \"praise\": positive feedback with no problem reported.\n- sentiment: \"positive\", \"neutral\" or \"negative\".\n- sentiment_score: a number from -1 (very negative) to 1 (very positive).\n- is_angry: true ONLY for strong anger: insults, threats to leave, report or sue, words like \"furious\", \"worst\", \"scam\", \"disgusting\", heavy use of capitals or \"!!!\". Mild disappointment is NOT angry.\n- issue_group: for complaint, bug and idea, a short lowercase noun phrase of 2 to 4 words naming the UNDERLYING problem in generic terms (good: \"slow delivery\"; bad: \"order 4451 was late on friday\").\n  You MUST reuse a group from EXISTING GROUPS when the comment describes the same underlying problem, even if worded differently.\n  Create a new group only when none fits. For praise, use \"\".\n- summary: at most 15 words, neutral tone.\n\nEXISTING GROUPS: ${JSON.stringify(existingGroups)}\nCUSTOMER RATING (1-5, may be empty): ${validated.rating !== null ? validated.rating : ''}\nCOMMENT:\n\"\"\"${validated.comment}\"\"\"`;\n\nconst schema = {\n  type: \"OBJECT\",\n  required: [\"category\", \"sentiment\", \"sentiment_score\", \"is_angry\", \"issue_group\", \"summary\"],\n  properties: {\n    category: { type: \"STRING\", enum: [\"praise\", \"complaint\", \"bug\", \"idea\"] },\n    sentiment: { type: \"STRING\", enum: [\"positive\", \"neutral\", \"negative\"] },\n    sentiment_score: { type: \"NUMBER\" },\n    is_angry: { type: \"BOOLEAN\" },\n    issue_group: { type: \"STRING\" },\n    summary: { type: \"STRING\" }\n  }\n};\n\nconst geminiPayload = {\n  contents: [\n    {\n      parts: [\n        { text: prompt }\n      ]\n    }\n  ],\n  generationConfig: {\n    temperature: 0.1,\n    responseMimeType: \"application/json\",\n    responseSchema: schema\n  }\n};\n\nreturn [{\n  json: {\n    validated,\n    existingGroups,\n    geminiPayload\n  }\n}];"
+      },
+      "id": "e6a2b534-1188-469a-9e12-4091ecf1aa30",
+      "name": "Build Gemini Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [580, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/__GEMINI_MODEL__:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.geminiPayload) }}",
+        "options": {}
+      },
+      "id": "8c41bb02-3921-42fb-a790-25e2fb11d401",
+      "name": "Tag With Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "position": [800, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "__CRED_GEMINI_HEADER_ID__",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const validated = $('Build Gemini Request').first().json.validated;\nconst existingGroups = $('Build Gemini Request').first().json.existingGroups || [];\nconst ANGRY_THRESHOLD = -0.6;\n\nfunction jaccardSimilarity(str1, str2) {\n  const set1 = new Set(str1.toLowerCase().split(/\\s+/).filter(Boolean));\n  const set2 = new Set(str2.toLowerCase().split(/\\s+/).filter(Boolean));\n  if (set1.size === 0 || set2.size === 0) return 0;\n  let intersection = 0;\n  for (const item of set1) {\n    if (set2.has(item)) intersection++;\n  }\n  const union = new Set([...set1, ...set2]).size;\n  return intersection / union;\n}\n\nlet aiData = null;\nconst geminiResponse = $input.first().json;\n\ntry {\n  const text = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text;\n  if (text) {\n    aiData = JSON.parse(text);\n  }\n} catch (e) {\n  aiData = null;\n}\n\nlet category, sentiment, sentiment_score, is_angry, issue_group, summary;\n\nif (aiData && typeof aiData === 'object') {\n  const validCats = ['praise', 'complaint', 'bug', 'idea'];\n  let rawScore = typeof aiData.sentiment_score === 'number' ? aiData.sentiment_score : 0;\n  sentiment_score = Math.max(-1, Math.min(1, Math.round(rawScore * 100) / 100));\n\n  if (validCats.includes(aiData.category)) {\n    category = aiData.category;\n  } else {\n    category = sentiment_score < 0 ? 'complaint' : 'praise';\n  }\n\n  const validSents = ['positive', 'neutral', 'negative'];\n  sentiment = validSents.includes(aiData.sentiment) ? aiData.sentiment : (sentiment_score > 0.1 ? 'positive' : sentiment_score < -0.1 ? 'negative' : 'neutral');\n\n  if (category === 'praise') {\n    issue_group = '';\n  } else {\n    let rawGroup = typeof aiData.issue_group === 'string' ? aiData.issue_group : '';\n    let normalized = rawGroup.toLowerCase().replace(/[^a-z0-9\\s]/g, ' ').replace(/\\s+/g, ' ').trim();\n\n    let matchedGroup = normalized;\n    for (const existing of existingGroups) {\n      if (jaccardSimilarity(normalized, existing) >= 0.5) {\n        matchedGroup = existing;\n        break;\n      }\n    }\n    issue_group = matchedGroup || 'general feedback';\n  }\n\n  is_angry = (aiData.is_angry === true || sentiment_score <= ANGRY_THRESHOLD) && category !== 'praise';\n  summary = typeof aiData.summary === 'string' ? aiData.summary.trim() : '';\n  if (summary.split(/\\s+/).length > 15) {\n    summary = summary.split(/\\s+/).slice(0, 15).join(' ');\n  }\n} else {\n  const r = validated.rating || 3;\n  if (r >= 4) {\n    category = 'praise';\n    sentiment = 'positive';\n    sentiment_score = 0.8;\n    issue_group = '';\n  } else if (r <= 2) {\n    category = 'complaint';\n    sentiment = 'negative';\n    sentiment_score = -0.8;\n    issue_group = 'untriaged';\n  } else {\n    category = 'idea';\n    sentiment = 'neutral';\n    sentiment_score = 0.0;\n    issue_group = 'untriaged';\n  }\n  is_angry = false;\n  summary = 'AI unavailable; classified by rating.';\n}\n\nconst row = {\n  id: validated.id,\n  received_at: validated.received_at,\n  source: validated.source,\n  source_ref: validated.source_ref,\n  customer_name: validated.customer_name,\n  customer_email: validated.customer_email,\n  rating: validated.rating !== null ? validated.rating : '',\n  comment: validated.comment,\n  category,\n  sentiment,\n  sentiment_score,\n  is_angry: is_angry ? 'TRUE' : 'FALSE',\n  issue_group,\n  summary,\n  alert_sent: is_angry ? 'TRUE' : 'FALSE',\n  batch_id: validated.batch_id\n};\n\nreturn [{\n  json: {\n    ...row,\n    is_angry_bool: is_angry\n  }\n}];"
+      },
+      "id": "10b8cf92-9110-482a-bc93-a44781df0302",
+      "name": "Parse Tags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1020, 100]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "__GOOGLE_SHEET_ID__",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "__SHEET_TAB_FEEDBACK__",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "cf64a78b-304e-4f1b-b461-897db6c1001a",
+      "name": "Save To Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1240, 100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "__CRED_GOOGLE_SHEETS_ID__",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  ok: true,\n  id: $('Parse Tags').first().json.id,\n  category: $('Parse Tags').first().json.category,\n  sentiment: $('Parse Tags').first().json.sentiment,\n  sentiment_score: $('Parse Tags').first().json.sentiment_score,\n  is_angry: $('Parse Tags').first().json.is_angry_bool,\n  issue_group: $('Parse Tags').first().json.issue_group\n}) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "7832f91a-7b3b-4876-b33e-1fca489810f2",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1460, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c_angry",
+              "leftValue": "={{ $('Parse Tags').first().json.is_angry_bool }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "5e174b01-512c-4933-9118-8f81ea01bc09",
+      "name": "Is Angry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1680, 100]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "__TELEGRAM_CHAT_ID__",
+        "text": "={{ '🚨 <b>Angry customer alert</b>\\n<b>Source:</b> ' + $('Parse Tags').first().json.source + '\\n<b>Customer:</b> ' + ($('Parse Tags').first().json.customer_name || 'Anonymous') + ' ' + ($('Parse Tags').first().json.customer_email || '') + '\\n<b>Rating:</b> ' + ($('Parse Tags').first().json.rating || 'n/a') + '  <b>Score:</b> ' + $('Parse Tags').first().json.sentiment_score + '\\n<b>Issue:</b> ' + $('Parse Tags').first().json.issue_group + '\\n\"' + ($('Parse Tags').first().json.comment || '').slice(0, 500).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '\"' }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "f5127ab9-7a1b-4d44-be19-86927da8001e",
+      "name": "Send Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1900, 40],
+      "credentials": {
+        "telegramApi": {
+          "id": "__CRED_TELEGRAM_ID__",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Feedback Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Read Existing Groups",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Spam?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Spam?": {
+      "main": [
+        [
+          {
+            "node": "Respond Spam 200",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Existing Groups": {
+      "main": [
+        [
+          {
+            "node": "Build Gemini Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Gemini Request": {
+      "main": [
+        [
+          {
+            "node": "Tag With Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag With Gemini": {
+      "main": [
+        [
+          {
+            "node": "Parse Tags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Tags": {
+      "main": [
+        [
+          {
+            "node": "Save To Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save To Sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200": {
+      "main": [
+        [
+          {
+            "node": "Is Angry?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Angry?": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  }
+}
