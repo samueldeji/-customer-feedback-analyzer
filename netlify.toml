@@ -1,0 +1,14 @@
+# customer-feedback-analyzer
+# netlify.toml
+# Root Netlify configuration
+
+[build]
+  command = "npm run web:build"
+  publish = "web/public"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
