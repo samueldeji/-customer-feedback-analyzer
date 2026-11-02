@@ -3,16 +3,28 @@
 **SIWES Industrial Training Technical Defense Project**  
 **Department of Computer Science, Obafemi Awolowo University (OAU), Ile-Ife, Nigeria**  
 **Student Developer:** Samuel Deji Adewuyi  
-**Supervised Enterprise Context:** ChopFast Lagos (Culinary Logistics & On-Demand Food Delivery Fleet)
+**Supervised Enterprise Context:** ChopFast Lagos (A fictional on-demand food delivery business created for SIWES demonstration)
 
 ---
 
 ## 1. Executive Summary
-The **Customer Feedback Analyzer (CFA)** is an end-to-end, AI-augmented data pipeline and analytics dashboard engineered to transform unstructured customer feedback into structured, real-time operational intelligence. Built on top of **n8n v2.45.7**, **Google Gemini 3.5 Flash-Lite**, **Google Sheets**, and **Telegram Bot API**, the platform ingests comments across diverse channels (web survey forms, Gmail messages, and online reviews), categorizes issues with fuzzy clustering, alerts on-duty fleet operations to crisis events within seconds, and synthesizes executive leadership digests delivered automatically via Gmail.
+I built a system that reads customer feedback from a form, email and reviews, uses AI to tag it, alerts staff about angry customers and emails a weekly top-5 issues report.
 
 ---
 
-## 2. Core Features
+## 2. Tools Used
+- **n8n:** Workflow automation & API orchestration engine (`v2.45.7`).
+- **Google Gemini AI (`gemini-3.5-flash-lite`):** Semantic analysis, categorization (`praise`, `complaint`, `bug`, `idea`), and sentiment scoring.
+- **Google Sheets:** Cloud database storage for raw feedback records and historical weekly digests.
+- **Gmail API:** Automated customer support email ingestion and HTML executive digest distribution.
+- **Telegram Bot API:** Instant real-time mobile push notifications for urgent/angry customer feedback.
+- **Tailwind CSS v4 & Chart.js:** Responsive frontend web app with interactive sentiment and trend graphs.
+- **Cloudflare Tunnel:** Secure HTTPS proxy connecting public webhooks to local backend services.
+- **Netlify:** Production edge hosting and automated CI/CD for the public web app.
+
+---
+
+## 3. Core Features
 - **Multi-Channel Ingestion:** Unifies web surveys, incoming customer support emails (`label:feedback`), and Google reviews.
 - **AI Classification & Sentiment Scoring:** Employs Google Gemini 3.5 Flash-Lite with strict JSON schema validation to extract categories (`praise`, `complaint`, `bug`, `idea`), numeric sentiment (-1.0 to 1.0), and 15-word summaries.
 - **Dynamic Issue Clustering:** Implements token-level Jaccard word-set similarity ($\ge 0.5$) against existing database records to automatically group repeated complaints without hardcoded buckets.
@@ -23,7 +35,7 @@ The **Customer Feedback Analyzer (CFA)** is an end-to-end, AI-augmented data pip
 
 ---
 
-## 3. System Architecture
+## 4. System Architecture
 
 ```mermaid
 flowchart TD
@@ -73,7 +85,7 @@ flowchart TD
 
 ---
 
-## 4. Technical Stack
+## 5. Technical Stack
 
 | Category | Component | Specification | Purpose |
 |---|---|---|---|
@@ -81,7 +93,7 @@ flowchart TD
 | **Generative AI** | Google Gemini | `gemini-3.5-flash-lite` | Structured sentiment and issue grouping |
 | **Database** | Google Sheets | OAuth2 API v4 | Tabular storage for feedback and digest logs |
 | **Crisis Alerts** | Telegram Bot API | BotFather (`@ChopFastAlertsBot`) | Instant operations dispatch without third-party branding |
-| **Email In/Out** | Gmail API | OAuth2 (`xZsCfEo4nlYN8nCr`) | Polling feedback emails and dispatching HTML digests |
+| **Email In/Out** | Gmail API | Google Workspace OAuth2 | Polling feedback emails and dispatching HTML digests |
 | **Styling** | Tailwind CSS | `v4.3.3` (Tailwind CLI) | Mobile-first modern utility styles |
 | **Charts** | Chart.js | `v4.6.1` (Pinned CDN) | Responsive canvas data visualizations |
 | **Public Ingress** | Cloudflare Tunnel | `cloudflared v2026.10.7` | Secure HTTPS tunnel to local n8n webhooks |
@@ -89,11 +101,12 @@ flowchart TD
 
 ---
 
-## 5. Repository Structure
+## 6. Repository Structure
 ```text
 customer-feedback-analyzer/
 ├── .env.example               # Environment variables template
 ├── .gitignore                  # Git exclusion rules (secrets, node_modules, temp files)
+├── netlify.toml               # Netlify build and deployment config
 ├── package.json               # Root scripts (build, test, serve)
 ├── README.md                  # Main SIWES project report documentation
 ├── docs/                      # Setup guides and architecture documentation
@@ -119,7 +132,6 @@ customer-feedback-analyzer/
 ├── test-data/                 # Acceptance test datasets
 │   └── feedback-50.json       # Planted 50-comment distribution test suite
 └── web/                       # Frontend web application
-    ├── netlify.toml           # Netlify build and deployment config
     ├── package.json           # Tailwind CSS build dependencies
     ├── src/
     │   └── input.css          # Tailwind CSS v4 entrypoint
@@ -139,7 +151,7 @@ customer-feedback-analyzer/
 
 ---
 
-## 6. Daily Run Guide
+## 7. Daily Run Guide
 
 ### Step 1: Start n8n
 Open a PowerShell terminal and run:
@@ -151,7 +163,8 @@ Keep this window open. n8n will run at `http://localhost:5678`.
 ### Step 2: Start Cloudflare Tunnel (for Live Public Access)
 Open a second PowerShell terminal and run:
 ```powershell
-.\scripts\cloudflared.exe tunnel --url http://localhost:5678
+winget install Cloudflare.cloudflared
+cloudflared tunnel --url http://localhost:5678
 ```
 Copy the generated `https://<random>.trycloudflare.com` URL into `web/public/js/config.js` and push to GitHub so Netlify routes live calls to your machine.
 
@@ -167,7 +180,7 @@ Access the application locally at:
 
 ---
 
-## 7. Acceptance Test Results (Phase 8 Summary)
+## 8. Acceptance Test Results (Phase 8 Summary)
 The automated acceptance test evaluated the pipeline against a planted distribution of **50 realistic Lagos customer comments**:
 
 | Metric | Target | Result | Status |
@@ -178,29 +191,6 @@ The automated acceptance test evaluated the pipeline against a planted distribut
 | **Angry Customer Detection** | $\ge 5 / 6$ | **6 / 6** flagged (100% accuracy) | **PASS** |
 
 The full verification log is documented in [`docs/test-report.md`](docs/test-report.md).
-
----
-
-## 8. Defense Presentation Screenshot Checklist
-
-Prepare the following screenshots for your SIWES technical defense slides:
-
-1. [ ] **n8n Workflow Canvases:**
-   - CFA 01 (Feedback Processor) showing the full branching logic.
-   - CFA 04 (Weekly Digest) showing the ranking and email dispatch nodes.
-   - CFA 05 (Dashboard API) showing the aggregation logic.
-2. [ ] **Google Sheets Database:**
-   - Tab `Feedback` populated with categorized customer rows, scores, and issue groups.
-   - Tab `Digest` showing recorded execution logs and top issues JSON.
-3. [ ] **Telegram Instant Alert:**
-   - Screenshot of the `@ChopFastAlertsBot` notification displaying an angry review alert (clean, without n8n attribution).
-4. [ ] **Gmail Weekly Digest:**
-   - Screenshot of the mobile-friendly HTML leadership email delivered to your inbox.
-5. [ ] **Web Application:**
-   - Feedback submission form on mobile and desktop viewports.
-   - Live analytics dashboard showing KPIs, Chart.js graphs, and recent feedback streams.
-6. [ ] **Terminal Acceptance Test:**
-   - Terminal output displaying `OVERALL RESULT: PASS` with 100% category accuracy.
 
 ---
 
