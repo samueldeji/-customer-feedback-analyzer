@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50 text-slate-800 antialiased">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customer Intelligence Dashboard — ChopFast</title>
+  <meta name="description" content="Real-time analytics, AI sentiment distribution, issue clustering, and feedback stream for ChopFast.">
+  <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- Chart.js pinned to 4.6.1 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.6.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="flex min-h-full flex-col font-sans">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+      <a href="index.html" class="flex items-center gap-2 text-xl font-bold tracking-tight text-emerald-700 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-md">
+        <span>ChopFast Feedback</span>
+      </a>
+
+      <!-- Desktop Nav -->
+      <nav class="hidden md:flex items-center gap-6" aria-label="Main Navigation">
+        <a href="index.html" class="text-sm font-medium text-slate-600 hover:text-emerald-600 transition-colors">Home</a>
+        <a href="feedback.html" class="text-sm font-medium text-slate-600 hover:text-emerald-600 transition-colors">Give Feedback</a>
+        <a href="dashboard.html" class="text-sm font-semibold text-emerald-700 border-b-2 border-emerald-600 pb-0.5">Dashboard</a>
+      </nav>
+
+      <!-- Mobile Menu Button -->
+      <button id="mobile-menu-btn" type="button" aria-expanded="false" aria-controls="mobile-nav" aria-label="Toggle navigation menu"
+        class="inline-flex md:hidden items-center justify-center rounded-lg p-2.5 text-slate-600 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile Navigation Dropdown -->
+    <nav id="mobile-nav" class="hidden border-t border-slate-200 bg-white px-4 py-3 md:hidden" aria-label="Mobile Navigation">
+      <div class="flex flex-col gap-2">
+        <a href="index.html" class="rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-50">Home</a>
+        <a href="feedback.html" class="rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-50">Give Feedback</a>
+        <a href="dashboard.html" class="rounded-md px-3 py-2 text-base font-semibold text-emerald-700 bg-emerald-50">Dashboard</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 py-8">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6">
+      
+      <!-- Top Action Bar -->
+      <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-5">
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Customer Intelligence Dashboard</h1>
+          <p class="mt-1 text-sm text-slate-500">
+            Real-time feedback monitoring and AI operational insights.
+            <span id="last-updated-text" class="ml-2 font-mono text-xs text-slate-400"></span>
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- Time Range Selector -->
+          <label for="range-selector" class="sr-only">Select time range</label>
+          <select id="range-selector" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-xs focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
+            <option value="7" selected>Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="all">All time</option>
+          </select>
+
+          <!-- Refresh Button -->
+          <button id="refresh-btn" type="button" class="btn btn-secondary text-sm px-3.5 py-2 inline-flex items-center gap-1.5" title="Refresh dashboard data">
+            <svg id="refresh-icon" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Error State Banner -->
+      <div id="dashboard-error" class="hidden mb-8 rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+        <svg class="mx-auto h-10 w-10 text-red-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <h3 class="text-base font-bold text-red-900 mb-1">Failed to load dashboard data</h3>
+        <p id="dashboard-error-msg" class="text-sm text-red-700 max-w-md mx-auto mb-4">Please verify that n8n is running on http://localhost:5678.</p>
+        <button id="retry-btn" type="button" class="btn btn-primary text-sm px-4 py-2">Retry</button>
+      </div>
+
+      <!-- Loading Skeleton State -->
+      <div id="dashboard-loading" class="animate-pulse space-y-8">
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div class="h-28 rounded-xl bg-slate-200"></div>
+          <div class="h-28 rounded-xl bg-slate-200"></div>
+          <div class="h-28 rounded-xl bg-slate-200"></div>
+          <div class="h-28 rounded-xl bg-slate-200"></div>
+        </div>
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div class="h-72 rounded-xl bg-slate-200"></div>
+          <div class="h-72 rounded-xl bg-slate-200"></div>
+          <div class="h-72 rounded-xl bg-slate-200"></div>
+        </div>
+        <div class="h-64 rounded-xl bg-slate-200"></div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="dashboard-empty" class="hidden my-12 card text-center py-12">
+        <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+          </svg>
+        </div>
+        <h3 class="text-lg font-bold text-slate-800">No feedback yet</h3>
+        <p class="mt-1 text-sm text-slate-500 max-w-sm mx-auto">There are no customer entries within this evaluation window.</p>
+        <div class="mt-5">
+          <a href="feedback.html" class="btn btn-primary text-sm">Submit First Review</a>
+        </div>
+      </div>
+
+      <!-- Active Content Container -->
+      <div id="dashboard-content" class="hidden space-y-8">
+        
+        <!-- 1. KPI Cards (2 cols on mobile, 4 on desktop) -->
+        <section aria-labelledby="kpi-heading">
+          <h2 id="kpi-heading" class="sr-only">Key Performance Indicators</h2>
+          <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <!-- Total Feedback -->
+            <div class="card p-5">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Feedback</span>
+              <div id="kpi-total" class="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900">0</div>
+              <div class="mt-1 text-xs text-slate-400">All channels combined</div>
+            </div>
+
+            <!-- Complaints & Bugs -->
+            <div class="card p-5">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Issues & Bugs</span>
+              <div id="kpi-issues" class="mt-2 text-2xl sm:text-3xl font-extrabold text-amber-600">0</div>
+              <div id="kpi-issues-sub" class="mt-1 text-xs text-slate-400">0 complaints, 0 bugs</div>
+            </div>
+
+            <!-- Angry Customers -->
+            <div class="card p-5">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Angry Customers</span>
+              <div id="kpi-angry" class="mt-2 text-2xl sm:text-3xl font-extrabold text-red-600">0</div>
+              <div class="mt-1 text-xs text-red-500 font-medium">Triggered Telegram alert</div>
+            </div>
+
+            <!-- Avg Sentiment -->
+            <div class="card p-5">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Avg Sentiment</span>
+              <div id="kpi-sentiment" class="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900">0.00</div>
+              <div id="kpi-sentiment-label" class="mt-1 text-xs font-semibold">Neutral</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. Charts Grid -->
+        <section aria-labelledby="charts-heading">
+          <h2 id="charts-heading" class="sr-only">Visual Analytics</h2>
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            
+            <!-- Sentiment Doughnut -->
+            <div class="card flex flex-col justify-between">
+              <div class="mb-3">
+                <h3 class="text-base font-bold text-slate-900">Sentiment Distribution</h3>
+                <p class="text-xs text-slate-500">Positive vs. Neutral vs. Negative</p>
+              </div>
+              <div class="relative h-60 w-full flex items-center justify-center">
+                <canvas id="chart-sentiment"></canvas>
+              </div>
+            </div>
+
+            <!-- Category Bar Chart -->
+            <div class="card flex flex-col justify-between">
+              <div class="mb-3">
+                <h3 class="text-base font-bold text-slate-900">Category Breakdown</h3>
+                <p class="text-xs text-slate-500">Distribution across praise, bugs, ideas & complaints</p>
+              </div>
+              <div class="relative h-60 w-full">
+                <canvas id="chart-category"></canvas>
+              </div>
+            </div>
+
+            <!-- Daily Trends Line Chart -->
+            <div class="card flex flex-col justify-between">
+              <div class="mb-3">
+                <h3 class="text-base font-bold text-slate-900">Daily Feedback Volume</h3>
+                <p class="text-xs text-slate-500">Trend over selected timeframe</p>
+              </div>
+              <div class="relative h-60 w-full">
+                <canvas id="chart-daily"></canvas>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- 3. Top 5 Issues (Clustering) -->
+        <section class="card" aria-labelledby="top-issues-heading">
+          <div class="mb-4 flex items-center justify-between">
+            <div>
+              <h2 id="top-issues-heading" class="text-lg font-bold text-slate-900">Top Repeated Issues</h2>
+              <p class="text-xs text-slate-500">Ranked by volume and average sentiment intensity</p>
+            </div>
+            <span class="badge bg-slate-100 text-slate-700">Fuzzy Clustered</span>
+          </div>
+
+          <div id="top-issues-container" class="space-y-4">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- 4. Recent Feedback Stream -->
+        <section class="card" aria-labelledby="recent-feedback-heading">
+          <div class="mb-4 flex items-center justify-between">
+            <div>
+              <h2 id="recent-feedback-heading" class="text-lg font-bold text-slate-900">Recent Customer Feedback</h2>
+              <p class="text-xs text-slate-500">Latest 20 analyzed comments (Privacy: customer emails omitted)</p>
+            </div>
+            <span id="recent-count-badge" class="badge bg-emerald-100 text-emerald-800">0 items</span>
+          </div>
+
+          <!-- Desktop Table (>= 768px) -->
+          <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-slate-200 bg-slate-50/75 text-xs uppercase font-semibold text-slate-500 tracking-wider">
+                  <th class="py-3 px-3">Date</th>
+                  <th class="py-3 px-3">Source</th>
+                  <th class="py-3 px-3">Category</th>
+                  <th class="py-3 px-3">Sentiment</th>
+                  <th class="py-3 px-3">Issue Group</th>
+                  <th class="py-3 px-3">Comment</th>
+                </tr>
+              </thead>
+              <tbody id="recent-table-body" class="divide-y divide-slate-100 font-normal">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile Cards (< 768px) -->
+          <div id="recent-cards-mobile" class="space-y-3 md:hidden">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-200 bg-white py-6">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6 text-xs text-slate-500">
+      <p>&copy; ChopFast Lagos. Built for SIWES Technical Defense &bull; Dept. of Computer Science, OAU.</p>
+      <div class="flex gap-4">
+        <a href="index.html" class="hover:text-emerald-700 transition-colors">Home</a>
+        <a href="feedback.html" class="hover:text-emerald-700 transition-colors">Give Feedback</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/nav.js"></script>
+  <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

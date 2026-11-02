@@ -1,0 +1,15 @@
+# customer-feedback-analyzer
+# web/netlify.toml
+# Netlify deployment configuration for ChopFast Customer Feedback Analyzer
+
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = "public"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
