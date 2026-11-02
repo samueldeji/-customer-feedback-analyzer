@@ -1,0 +1,13 @@
+{
+  "name": "customer-feedback-analyzer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "workflows:build": "node --env-file=.env scripts/build-workflows.js",
+    "workflows:import": "powershell -ExecutionPolicy Bypass -File scripts/import-workflows.ps1",
+    "web:build": "npm --prefix web run build",
+    "web:serve": "node scripts/serve-web.js",
+    "test:send": "node --env-file=.env scripts/send-test-feedback.js",
+    "test:verify": "node --env-file=.env scripts/verify-digest.js"
+  }
+}

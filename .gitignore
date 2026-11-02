@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Environment and secrets
+.env
+
+# Generated n8n workflows
+n8n/dist/
+
+# Generated web assets
+web/public/css/styles.css
+
+# Test artifacts
+test-data/last-run.json
+
+# Operating System and editor files
+.DS_Store
+Thumbs.db
+*.log
