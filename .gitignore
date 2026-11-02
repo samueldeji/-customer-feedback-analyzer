@@ -13,6 +13,10 @@ web/public/css/styles.css
 # Test artifacts
 test-data/last-run.json
 
+# Binaries and tools
+scripts/cloudflared.exe
+*.exe
+
 # Operating System and editor files
 .DS_Store
 Thumbs.db
