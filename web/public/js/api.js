@@ -2,7 +2,7 @@
 // web/public/js/api.js
 // API client for submitting feedback and retrieving dashboard analytics.
 
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 30000;
 
 function getBaseUrl() {
   const base = window.APP_CONFIG?.N8N_BASE_URL || 'http://localhost:5678';
