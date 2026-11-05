@@ -3,5 +3,5 @@
 // Global application config. Update N8N_BASE_URL to your Cloudflare Tunnel URL when deploying.
 
 window.APP_CONFIG = {
-  N8N_BASE_URL: "https://mariah-helps-ipod-pub.trycloudflare.com"
+  N8N_BASE_URL: "https://sweet-litigation-windsor-compensation.trycloudflare.com"
 };
